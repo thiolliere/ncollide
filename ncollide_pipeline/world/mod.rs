@@ -19,9 +19,9 @@ mod collision_world;
 
 
 /// A 3D collision world associating collision objects to user-defined data of type `T`.
-pub type CollisionWorld3<N, T> = CollisionWorld<Point3<N>, Isometry3<N>, T>;
-/// A 2D collision world associating collision objects to user-defined data of type `T`.
-pub type CollisionWorld2<N, T> = CollisionWorld<Point2<N>, Isometry2<N>, T>;
+pub type CollisionWorld3<N, T, D> = CollisionWorld<Point3<N>, Isometry3<N>, T, D>;
+/// A 2D collision world associating collision objects to user-defined data of type `T, D`.
+pub type CollisionWorld2<N, T, D> = CollisionWorld<Point2<N>, Isometry2<N>, T, D>;
 
 /// A 3D collision object with user-defined data of type `T`.
 pub type CollisionObject3<N, T> = CollisionObject<Point3<N>, Isometry3<N>, T>;

@@ -210,8 +210,8 @@ impl CollisionGroupsPairFilter {
     }
 }
 
-impl<P: Point, M, T> BroadPhasePairFilter<P, M, T> for CollisionGroupsPairFilter {
-    fn is_pair_valid(&self, b1: &CollisionObject<P, M, T>, b2: &CollisionObject<P, M, T>) -> bool {
+impl<P: Point, M, T> BroadPhasePairFilter<P, M, T, ()> for CollisionGroupsPairFilter {
+    fn is_pair_valid(&self, b1: &CollisionObject<P, M, T>, b2: &CollisionObject<P, M, T>, data: &()) -> bool {
         let id1 = b1 as *const CollisionObject<P, M, T> as usize;
         let id2 = b2 as *const CollisionObject<P, M, T> as usize;
 

@@ -19,13 +19,13 @@ pub type NarrowPhaseObject<P, M, T> = Box<NarrowPhase<P, M, T>>;
 pub type BroadPhaseObject<P> = Box<BroadPhase<P, AABB<P>, FastKey>>;
 
 /// A world that handles collision objects.
-pub struct CollisionWorld<P: Point, M, T> {
+pub struct CollisionWorld<P: Point, M, T, D> {
     objects:           UidRemap<CollisionObject<P, M, T>>,
     broad_phase:       BroadPhaseObject<P>,
     narrow_phase:      Box<NarrowPhase<P, M, T>>,
     contact_events:    ContactEvents,
     proximity_events:  ProximityEvents,
-    pair_filters:      BroadPhasePairFilters<P, M, T>,
+    pair_filters:      BroadPhasePairFilters<P, M, T, D>,
     pos_to_update:     Vec<(FastKey, M)>,
     objects_to_remove: Vec<usize>,
     objects_to_add:    Vec<CollisionObject<P, M, T>>,
@@ -33,10 +33,10 @@ pub struct CollisionWorld<P: Point, M, T> {
     // FIXME: allow modification of the other properties too.
 }
 
-impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
+impl<P: Point, M: Isometry<P>, T, D> CollisionWorld<P, M, T, D> {
     /// Creates a new collision world.
     // FIXME: use default values for `margin` and allow its modification by the user ?
-    pub fn new(margin: P::Real, small_uids: bool) -> CollisionWorld<P, M, T> {
+    pub fn new(margin: P::Real, small_uids: bool) -> CollisionWorld<P, M, T, D> {
         let objects          = UidRemap::new(small_uids);
         let coll_dispatcher  = Box::new(DefaultContactDispatcher::new());
         let prox_dispatcher  = Box::new(DefaultProximityDispatcher::new());
@@ -77,9 +77,9 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
     ///
     /// This executes the whole collision detection pipeline: the broad phase first, then the
     /// narrow phase.
-    pub fn update(&mut self) {
+    pub fn update(&mut self, filter_data: &D) {
         self.perform_position_update();
-        self.perform_additions_removals_and_broad_phase(); // this will perform the Broad Phase as well.
+        self.perform_additions_removals_and_broad_phase(filter_data); // this will perform the Broad Phase as well.
         self.perform_narrow_phase();
     }
 
@@ -114,7 +114,7 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
     /// a non-trivial overhead during the next update as it will force re-detection of all
     /// collision pairs.
     pub fn register_broad_phase_pair_filter<F>(&mut self, name: &str, filter: F)
-        where F: BroadPhasePairFilter<P, M, T> {
+        where F: BroadPhasePairFilter<P, M, T, D> {
         self.pair_filters.register_collision_filter(name, Box::new(filter));
         self.broad_phase.deferred_recompute_all_proximities();
     }
@@ -144,7 +144,7 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
 
     /// Actually adds or removes all the objects marked by `.deferred_add(...)` or
     /// `.deferred_remove(...)` and updates the broad phase.
-    pub fn perform_additions_removals_and_broad_phase(&mut self) {
+    pub fn perform_additions_removals_and_broad_phase(&mut self, filter_data: &D) {
         // Add objects.
         for co in self.objects_to_add.drain(..) {
             let mut aabb = bounding_volume::aabb(co.shape.as_ref(), &co.position);
@@ -163,7 +163,7 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
             }
         }
 
-        self.perform_broad_phase();
+        self.perform_broad_phase(filter_data);
 
         // clean up objects that have been marked as removed
         while let Some(uid) = self.objects_to_remove.pop() {
@@ -175,7 +175,7 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
     ///
     /// Note that this does not take in account the changes made to the collision updates after the
     /// last `.perform_position_update()` call.
-    pub fn perform_broad_phase(&mut self) {
+    pub fn perform_broad_phase(&mut self, filter_data: &D) {
         let bf    = &mut self.broad_phase;
         let nf    = &mut self.narrow_phase;
         let sig   = &mut self.contact_events;
@@ -185,7 +185,7 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
 
         bf.update(
             // Filter:
-            &mut |b1, b2| CollisionWorld::filter_collision(filts, objs, b1, b2),
+            &mut |b1, b2| CollisionWorld::filter_collision(filts, objs, b1, b2, filter_data),
             // Handler:
             &mut |b1, b2, started| nf.handle_interaction(sig, prox, objs, b1, b2, started));
     }
@@ -306,15 +306,16 @@ impl<P: Point, M: Isometry<P>, T> CollisionWorld<P, M, T> {
 
     // Filters by group and by the user-provided callback.
     #[inline]
-    fn filter_collision(filters: &BroadPhasePairFilters<P, M, T>,
-                        objects: &UidRemap<CollisionObject<P, M, T>>,
-                        fk1:     &FastKey,
-                        fk2:     &FastKey) -> bool {
+    fn filter_collision(filters:     &BroadPhasePairFilters<P, M, T, D>,
+                        objects:     &UidRemap<CollisionObject<P, M, T>>,
+                        fk1:         &FastKey,
+                        fk2:         &FastKey,
+                        filter_data: &D) -> bool {
         let o1 = &objects[*fk1];
         let o2 = &objects[*fk2];
         let filter_by_groups = CollisionGroupsPairFilter;
 
-        filter_by_groups.is_pair_valid(o1, o2) && filters.is_pair_valid(o1, o2)
+        filter_by_groups.is_pair_valid(o1, o2, &()) && filters.is_pair_valid(o1, o2, filter_data)
     }
 }
 
