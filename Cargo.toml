@@ -36,6 +36,9 @@ approx   = "0.1"
 alga     = "0.5"
 nalgebra = "0.14"
 rand     = "0.4"
+noisy_float = "*"
+num-traits = "*"
+derive_more = "*"
 
 [workspace]
 members = [ "ncollide_math", "ncollide_utils", "ncollide_geometry", "ncollide_pipeline",
